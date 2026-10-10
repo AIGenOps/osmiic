@@ -1,0 +1,22 @@
+# Rust / Cargo build artifacts
+/target/
+**/target/
+**/*.rs.bk
+
+# Tauri generated artifacts
+/src-tauri/target/
+/src-tauri/gen/
+**/gen/schemas/
+
+# Environment, OS, and Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*~
+.vscode/
+.idea/
+
+# Audit, dumps, and logs
+*.log
+OSMIIC_FULL_AUDIT.txt

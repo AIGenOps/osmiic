@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSMIIC - Media Downloader & Language Categorizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=tape-deck-v1">
+</head>
+<body>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Technical Error Details Modal -->
+    <div id="errorModal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-terminal"></i> Technical Diagnostic Log</h3>
+                <button id="closeModalBtn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <pre id="modalErrorContent">No diagnostics recorded.</pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlist Selector Modal -->
+    <div id="playlistModal" class="modal-overlay hidden">
+        <div class="modal-card modal-lg" style="max-width: 750px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-list-ol"></i> Playlist Track Extractor</h3>
+                <button id="closePlaylistModalBtn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="playlist-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <label class="toggle-control">
+                        <input type="checkbox" id="playlistSelectAll" checked>
+                        <span>Select / Deselect All</span>
+                    </label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <select id="playlistMasterCategory">
+                            <option value="Auto" selected>Folder: Auto-Detect</option>
+                            <option value="Hindi">Hindi</option>
+                            <option value="Punjabi">Punjabi</option>
+                            <option value="English">English</option>
+                            <option value="Tamil">Tamil</option>
+                            <option value="Telugu">Telugu</option>
+                            <option value="Spanish">Spanish</option>
+                        </select>
+                        <button id="queueSelectedPlaylistBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> Queue Selected Tracks (<span id="selectedTrackCount">0</span>)</button>
+                    </div>
+                </div>
+                <div id="playlistTracksList" class="playlist-tracks-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 400px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Tag & Lyrics Editor Modal -->
+    <div id="tagEditorModal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 550px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen-to-square"></i> Edit Media Metadata & Tags</h3>
+                <button id="closeTagModalBtn" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="tagEditorForm" class="url-form">
+                    <input type="hidden" id="editFilePath">
+                    <div class="setting-group">
+                        <label>Track Title:</label>
+                        <div class="input-wrapper"><input type="text" id="editTitle" required></div>
+                    </div>
+                    <div class="setting-group">
+                        <label>Artist / Channel:</label>
+                        <div class="input-wrapper"><input type="text" id="editArtist" required></div>
+                    </div>
+                    <div class="setting-group">
+                        <label>Category / Language Folder:</label>
+                        <select id="editCategory">
+                            <option value="Hindi">Hindi</option>
+                            <option value="Punjabi">Punjabi</option>
+                            <option value="English">English</option>
+                            <option value="Tamil">Tamil</option>
+                            <option value="Telugu">Telugu</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Korean">Korean</option>
+                            <option value="Japanese">Japanese</option>
+                            <option value="General">General</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label>Cover Artwork Path (Optional):</label>
+                        <div class="input-wrapper"><input type="text" id="editCoverPath" placeholder="/path/to/cover.jpg"></div>
+                    </div>
+                    <div class="setting-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label>Track Lyrics:</label>
+                            <button type="button" id="fetchLyricsBtn" class="btn btn-sm btn-secondary"><i class="fa-solid fa-align-left"></i> Fetch Lyrics (LRCLIB)</button>
+                        </div>
+                        <textarea id="editLyrics" rows="4" style="width:100%; color:#fff; padding:0.5rem; font-family:monospace; background:rgba(0,0,0,0.5); border:1px solid var(--border-line); border-radius:8px;" placeholder="Lyrics content..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save & Re-Tag File</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-compact-disc fa-spin-slow logo-icon"></i>
+                <div>
+                    <h2>OSMIIC</h2>
+                    <span class="version">v1.0 Desktop</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" data-view="downloadView">
+                    <i class="fa-solid fa-cloud-arrow-down"></i> Downloader & Queue
+                </button>
+                <button class="nav-item" data-view="libraryView">
+                    <i class="fa-solid fa-folder-tree"></i> Media Library
+                </button>
+                <button class="nav-item" data-view="settingsView">
+                    <i class="fa-solid fa-gear"></i> Settings
+                </button>
+            </nav>
+
+            <div class="system-status">
+                <div class="status-indicator online"></div>
+                <div class="status-info">
+                    <span id="systemVersion">OSMIIC Ready</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace View -->
+        <main class="content-area">
+            <!-- View 1: Downloader & Queue -->
+            <section id="downloadView" class="view-panel active">
+                <div class="card add-card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-plus-circle"></i> Add Media to Queue</h3>
+                    </div>
+
+                    <form id="urlForm" class="url-form">
+                        <div class="input-row">
+                            <div class="input-wrapper">
+                                <i class="fa-solid fa-link input-icon"></i>
+                                <input type="url" id="urlInput" placeholder="Paste YouTube / Music / Playlist URL here..." required autocomplete="off">
+                            </div>
+                            <button type="button" id="previewBtn" class="btn btn-secondary">
+                                <i class="fa-solid fa-eye"></i> Preview
+                            </button>
+                            <button type="button" id="parsePlaylistBtn" class="btn btn-secondary">
+                                <i class="fa-solid fa-list-ol"></i> Parse Playlist
+                            </button>
+                            <button type="submit" id="addQueueBtn" class="btn btn-primary">
+                                <i class="fa-solid fa-plus"></i> Add to Queue
+                            </button>
+                        </div>
+
+                        <!-- Instant Metadata & Category Selector Card -->
+                        <div id="previewCard" class="preview-card hidden">
+                            <div class="preview-thumb-wrapper">
+                                <img id="prevThumb" src="" alt="Cover Art">
+                                <span id="prevLangBadge" class="lang-badge">Auto</span>
+                            </div>
+                            <div class="preview-info">
+                                <h4 id="prevTitle">Song Title</h4>
+                                <p id="prevArtist"><i class="fa-solid fa-user-ninja"></i> Artist Name</p>
+                                <div class="meta-row">
+                                    <span id="prevDuration" class="meta-tag"><i class="fa-regular fa-clock"></i> 00:00</span>
+                                    <span class="meta-tag"><i class="fa-solid fa-image"></i> MaxRes Cover Art</span>
+                                </div>
+                            </div>
+
+                            <div class="category-selector-box">
+                                <label><i class="fa-solid fa-folder-open"></i> Select Folder Category:</label>
+                                <select id="categorySelect" class="category-dropdown">
+                                    <option value="Auto" selected>Auto-Detect (6-Tier Classifier)</option>
+                                    <option value="Hindi">Hindi (हिंदी)</option>
+                                    <option value="Punjabi">Punjabi (ਪੰਜਾਬੀ)</option>
+                                    <option value="English">English</option>
+                                    <option value="Tamil">Tamil (தமிழ்)</option>
+                                    <option value="Telugu">Telugu (తెలుగు)</option>
+                                    <option value="Spanish">Spanish (Español)</option>
+                                    <option value="Korean">Korean (한국어)</option>
+                                    <option value="Japanese">Japanese (日本語)</option>
+                                    <option value="French">French (Français)</option>
+                                    <option value="Malayalam">Malayalam</option>
+                                    <option value="Kannada">Kannada</option>
+                                    <option value="Marathi">Marathi</option>
+                                    <option value="Bengali">Bengali</option>
+                                    <option value="Instrumental">Instrumental / BGM</option>
+                                    <option value="Other">Other Category</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Options Toolbar -->
+                        <div class="options-toolbar">
+                            <div class="option-pill">
+                                <label><i class="fa-solid fa-sliders"></i> Mode:</label>
+                                <select id="modeSelect">
+                                    <option value="audio" selected>Best Audio</option>
+                                    <option value="video">Best Video (4K/1080p)</option>
+                                </select>
+                            </div>
+
+                            <div class="option-pill">
+                                <label><i class="fa-solid fa-file-audio"></i> Format:</label>
+                                <select id="formatSelect">
+                                    <option value="mp3" selected>MP3 (320kbps)</option>
+                                    <option value="flac">FLAC (Lossless)</option>
+                                    <option value="m4a">M4A (AAC)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Download Queue Panel -->
+                <div class="card queue-card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-list-check"></i> Download Queue Manager</h3>
+                        <div class="queue-actions">
+                            <button id="clearCompletedBtn" class="btn btn-sm btn-secondary">
+                                <i class="fa-solid fa-broom"></i> Clear Completed
+                            </button>
+                            <button id="startAllBtn" class="btn btn-sm btn-primary">
+                                <i class="fa-solid fa-play"></i> Process Queue
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="queueContainer" class="queue-container">
+                        <div class="empty-queue">
+                            <i class="fa-solid fa-layer-group queue-icon"></i>
+                            <p>No downloads in queue. Paste a URL above to start!</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View 2: Media Library -->
+            <section id="libraryView" class="view-panel">
+                <div class="card library-card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-headphones"></i> OSMIIC Media Library</h3>
+                        <button id="refreshLibBtn" class="btn btn-icon" title="Refresh Library"><i class="fa-solid fa-arrows-rotate"></i></button>
+                    </div>
+
+                    <!-- Filter & Search Toolbar -->
+                    <div class="library-toolbar">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="libSearchInput" placeholder="Search track name or artist...">
+                        </div>
+                        <div class="toolbar-options">
+                            <div class="filter-pill">
+                                <label>Sort:</label>
+                                <select id="libSortSelect">
+                                    <option value="name" selected>Name (A-Z)</option>
+                                    <option value="date">Date Added (Newest)</option>
+                                    <option value="size">File Size (Largest)</option>
+                                </select>
+                            </div>
+                            <div class="filter-pill">
+                                <label>Language:</label>
+                                <select id="libLangFilter">
+                                    <option value="All" selected>All Categories</option>
+                                    <option value="Hindi">Hindi</option>
+                                    <option value="Punjabi">Punjabi</option>
+                                    <option value="English">English</option>
+                                    <option value="Tamil">Tamil</option>
+                                    <option value="Telugu">Telugu</option>
+                                    <option value="Spanish">Spanish</option>
+                                    <option value="Korean">Korean</option>
+                                    <option value="Japanese">Japanese</option>
+                                    <option value="General">General</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="musicTab"><i class="fa-solid fa-music"></i> Music Folders</button>
+                        <button class="tab-btn" data-tab="videoTab"><i class="fa-solid fa-film"></i> Video Folders</button>
+                    </div>
+
+                    <div id="musicTab" class="tab-content active">
+                        <div id="musicLibraryList" class="library-accordion"></div>
+                    </div>
+
+                    <div id="videoTab" class="tab-content">
+                        <div id="videoLibraryList" class="library-accordion"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View 3: Settings Panel -->
+            <section id="settingsView" class="view-panel">
+                <div class="card settings-card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-sliders"></i> Application Preferences</h3>
+                        <button id="resetSettingsBtn" class="btn btn-sm btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset Defaults</button>
+                    </div>
+
+                    <form id="settingsForm" class="settings-form">
+                        <div class="setting-group">
+                            <label><i class="fa-solid fa-folder"></i> Downloads Target Folder Path:</label>
+                            <div class="input-wrapper">
+                                <input type="text" id="settingDownloadDir" placeholder="/home/user/Downloads/OSMIIC">
+                            </div>
+                        </div>
+
+                        <div class="settings-grid">
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-layer-group"></i> Max Concurrent Downloads (1-10): <small style="color: var(--text-muted); font-weight: normal; font-size: 0.75rem;">(Requires App Restart)</small></label>
+                                <div class="input-wrapper">
+                                    <input type="number" id="settingMaxConcurrent" min="1" max="10" value="3">
+                                </div>
+                            </div>
+
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-cookie-bite"></i> Browser Cookie Import:</label>
+                                <select id="settingCookiesBrowser">
+                                    <option value="none" selected>Disabled (Default)</option>
+                                    <option value="chrome">Google Chrome</option>
+                                    <option value="firefox">Mozilla Firefox</option>
+                                    <option value="brave">Brave Browser</option>
+                                    <option value="edge">Microsoft Edge</option>
+                                    <option value="safari">Apple Safari</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-copy"></i> Duplicate Handling on Disk:</label>
+                                <select id="settingDuplicateAction">
+                                    <option value="skip" selected>Skip (Do not re-download)</option>
+                                    <option value="overwrite">Overwrite existing file</option>
+                                    <option value="rename">Keep both (Auto-rename)</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-film"></i> Default Mode:</label>
+                                <select id="settingDefaultMode">
+                                    <option value="audio">Audio Only</option>
+                                    <option value="video">Video (4K/1080p)</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-file-audio"></i> Default Audio Format:</label>
+                                <select id="settingAudioFormat">
+                                    <option value="mp3">MP3 (320kbps)</option>
+                                    <option value="flac">FLAC (Lossless)</option>
+                                    <option value="m4a">M4A (AAC)</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-file-video"></i> Default Video Format:</label>
+                                <select id="settingVideoFormat">
+                                    <option value="mp4">MP4 (Video)</option>
+                                    <option value="mkv">MKV (Video)</option>
+                                    <option value="webm">WEBM (Video)</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-tags"></i> Default Category:</label>
+                                <select id="settingDefaultCategory">
+                                    <option value="Auto">Auto-Detect (6-Tier Classifier)</option>
+                                    <option value="Hindi">Hindi</option>
+                                    <option value="Punjabi">Punjabi</option>
+                                    <option value="English">English</option>
+                                    <option value="Tamil">Tamil</option>
+                                    <option value="Telugu">Telugu</option>
+                                    <option value="Spanish">Spanish</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-group">
+                                <label><i class="fa-solid fa-closed-captioning"></i> Subtitle Languages (e.g. en,hi,es):</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="settingSubLangs" value="en">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="setting-toggles">
+                            <label class="toggle-control">
+                                <input type="checkbox" id="settingAutoEmbed" checked>
+                                <span class="toggle-label"><i class="fa-solid fa-image"></i> Auto-Embed High-Res Artwork & Metadata</span>
+                            </label>
+                            <label class="toggle-control">
+                                <input type="checkbox" id="settingDownloadSubs">
+                                <span class="toggle-label"><i class="fa-solid fa-closed-captioning"></i> Auto-Download & Embed Video Subtitles</span>
+                            </label>
+                            <label class="toggle-control">
+                                <input type="checkbox" id="settingAutoLyrics" checked>
+                                <span class="toggle-label"><i class="fa-solid fa-align-left"></i> Auto-Fetch & Embed Synced Lyrics (LRCLIB)</span>
+                            </label>
+                            <label class="toggle-control">
+                                <input type="checkbox" id="settingAutoOpen">
+                                <span class="toggle-label"><i class="fa-solid fa-folder-open"></i> Auto-Open Destination Folder upon Completion</span>
+                            </label>
+                        </div>
+
+                        <div class="setting-group" style="margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid var(--border-line);">
+                            <label><i class="fa-solid fa-cloud-arrow-up"></i> Downloader Engine (yt-dlp):</label>
+                            <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem; flex-wrap: wrap;">
+                                <span id="ytdlpVersionBadge" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">yt-dlp: checking...</span>
+                                <button type="button" id="updateYtdlpBtn" class="btn btn-sm btn-secondary"><i class="fa-solid fa-arrows-rotate"></i> Check / Update yt-dlp (-U)</button>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Preferences</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js?v=tape-deck-v1"></script>
+</body>
+</html>
